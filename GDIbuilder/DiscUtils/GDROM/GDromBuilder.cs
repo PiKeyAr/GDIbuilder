@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.IO;
 using DiscUtils;
 using DiscUtils.Raw;
+using System.Threading;
 
 namespace DiscUtils.Gdrom
 {
@@ -22,7 +23,7 @@ namespace DiscUtils.Gdrom
         public string DataPreparerIdentifier { get; set; }
         public string ApplicationIdentifier { get; set; }
         private int _lastProgress;
-        public delegate void OnReportProgress(int percent);
+        public delegate void OnReportProgress(int percent, CancellationToken cancellationToken);
         public OnReportProgress ReportProgress { get; set; }
         public string Track03Path { get; set; }
         public string LastTrackPath { get; set; }
@@ -39,7 +40,7 @@ namespace DiscUtils.Gdrom
             ApplicationIdentifier = string.Empty;
         }
 
-        public List<DiscTrack> BuildGDROM(string data, string ipbin, List<string> cdda)
+        public List<DiscTrack> BuildGDROM(string data, string ipbin, List<string> cdda, CancellationToken ct)
         {
             string bootBin;
             byte[] ipbinData = new byte[0x8000];
@@ -79,36 +80,36 @@ namespace DiscUtils.Gdrom
                 {
                     if (RawMode)
                     {
-                        ExportMultiTrackRaw(isoStream, ipbinData, retval);
+                        ExportMultiTrackRaw(isoStream, ipbinData, retval, ct);
                     }
                     else
                     {
-                        ExportMultiTrack(isoStream, ipbinData, retval);
+                        ExportMultiTrack(isoStream, ipbinData, retval, ct);
                     }
                 }
                 else
                 {
                     if (RawMode)
                     {
-                        ExportSingleTrackRaw(isoStream, ipbinData, retval);
+                        ExportSingleTrackRaw(isoStream, ipbinData, retval, ct);
                     }
                     else
                     {
-                        ExportSingleTrack(isoStream, ipbinData, retval);
+                        ExportSingleTrack(isoStream, ipbinData, retval, ct);
                     }
                 }
             }
             return retval;
         }
 
-        public List<DiscTrack> BuildGDROM(string data, string ipbin, List<string> cdda, string outDir)
+        public List<DiscTrack> BuildGDROM(string data, string ipbin, List<string> cdda, string outDir, CancellationToken ct)
         {
             Track03Path = Path.Combine(outDir, "track03.bin");
             LastTrackPath = Path.Combine(outDir, GetLastTrackName(cdda != null ? cdda.Count : 0));
-            return BuildGDROM(data, ipbin, cdda);
+            return BuildGDROM(data, ipbin, cdda, ct);
         }
 
-        private void ExportSingleTrack(BuiltStream isoStream, byte[] ipbinData, List<DiscTrack> tracks)
+        private void ExportSingleTrack(BuiltStream isoStream, byte[] ipbinData, List<DiscTrack> tracks, CancellationToken ct)
         {
             long currentBytes = 0;
             long totalBytes = isoStream.Length;
@@ -141,9 +142,11 @@ namespace DiscUtils.Gdrom
                         int percent = (int)((currentBytes*100) / totalBytes);
                         if (percent > _lastProgress)
                         {
+                            if (ct.IsCancellationRequested)
+                                return;
                             _lastProgress = percent;
                             if(ReportProgress != null){
-                                ReportProgress(_lastProgress);
+                                ReportProgress(_lastProgress, ct);
                             }
                         }
                     }
@@ -154,7 +157,7 @@ namespace DiscUtils.Gdrom
         /// <summary>
         /// Separate raw logic to maintain performance of the 2048 version
         /// </summary>
-        private void ExportSingleTrackRaw(BuiltStream isoStream, byte[] ipbinData, List<DiscTrack> tracks)
+        private void ExportSingleTrackRaw(BuiltStream isoStream, byte[] ipbinData, List<DiscTrack> tracks, CancellationToken ct)
         {
             long currentBytes = 0;
             long totalBytes = isoStream.Length;
@@ -209,10 +212,12 @@ namespace DiscUtils.Gdrom
                         int percent = (int)((currentBytes * 100) / totalBytes);
                         if (percent > _lastProgress)
                         {
+                            if (ct.IsCancellationRequested)
+                                return;
                             _lastProgress = percent;
                             if (ReportProgress != null)
                             {
-                                ReportProgress(_lastProgress);
+                                ReportProgress(_lastProgress, ct);
                             }
                         }
                     }
@@ -220,7 +225,7 @@ namespace DiscUtils.Gdrom
             }
         }
         
-        private void ExportMultiTrack(BuiltStream isoStream, byte[] ipbinData, List<DiscTrack> tracks)
+        private void ExportMultiTrack(BuiltStream isoStream, byte[] ipbinData, List<DiscTrack> tracks, CancellationToken ct)
         {
             //There is a 150 sector gap before and after the CDDA
             long lastHeaderEnd = 0;
@@ -295,10 +300,12 @@ namespace DiscUtils.Gdrom
                         int percent = (int)((currentBytes * 100) / totalBytes);
                         if (percent > _lastProgress)
                         {
+                            if (ct.IsCancellationRequested)
+                                return;
                             _lastProgress = percent;
                             if (ReportProgress != null)
                             {
-                                ReportProgress(_lastProgress);
+                                ReportProgress(_lastProgress, ct);
                             }
                         }
                     }
@@ -323,10 +330,12 @@ namespace DiscUtils.Gdrom
                         int percent = (int)((currentBytes * 100) / totalBytes);
                         if (percent > _lastProgress)
                         {
+                            if (ct.IsCancellationRequested)
+                                return;
                             _lastProgress = percent;
                             if (ReportProgress != null)
                             {
-                                ReportProgress(_lastProgress);
+                                ReportProgress(_lastProgress, ct);
                             }
                         }
                     }
@@ -334,7 +343,7 @@ namespace DiscUtils.Gdrom
             }
         }
 
-        private void ExportMultiTrackRaw(BuiltStream isoStream, byte[] ipbinData, List<DiscTrack> tracks)
+        private void ExportMultiTrackRaw(BuiltStream isoStream, byte[] ipbinData, List<DiscTrack> tracks, CancellationToken ct)
         {
             //There is a 150 sector gap before and after the CDDA
             long lastHeaderEnd = 0;
@@ -431,10 +440,12 @@ namespace DiscUtils.Gdrom
                         int percent = (int)((currentBytes * 100) / totalBytes);
                         if (percent > _lastProgress)
                         {
+                            if (ct.IsCancellationRequested)
+                                return;
                             _lastProgress = percent;
                             if (ReportProgress != null)
                             {
-                                ReportProgress(_lastProgress);
+                                ReportProgress(_lastProgress, ct);
                             }
                         }
                     }
@@ -476,10 +487,12 @@ namespace DiscUtils.Gdrom
                         int percent = (int)((currentBytes * 100) / totalBytes);
                         if (percent > _lastProgress)
                         {
+                            if (ct.IsCancellationRequested)
+                                return;
                             _lastProgress = percent;
                             if (ReportProgress != null)
                             {
-                                ReportProgress(_lastProgress);
+                                ReportProgress(_lastProgress, ct);
                             }
                         }
                     }
